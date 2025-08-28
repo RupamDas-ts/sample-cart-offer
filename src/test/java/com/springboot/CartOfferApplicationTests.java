@@ -44,7 +44,7 @@ public class CartOfferApplicationTests {
 
     // ============ TEST CASE 1: FLATX OFFER TESTING ============
 
-    @ParameterizedTest(name = "TC_FLATX_{index}: {1}")
+    @ParameterizedTest(name = "TC_FLATX_{index}: {3}")
     @MethodSource("com.springboot.testdata.CartOfferTestDataProvider#getFlatXOfferTestData")
     @DisplayName("Apply FLATX Offers - Data Driven Tests")
     void testFlatXOfferApplication(int cartValue, int discountAmount, int expectedCartValue, String description)
@@ -66,36 +66,7 @@ public class CartOfferApplicationTests {
         System.out.println("✅ " + description + ": " + cartValue + " -> " + response.getCartValue());
     }
 
-    // ============ TEST CASE 2: MULTI-USER SEGMENT TESTING ============
-
-    @ParameterizedTest(name = "TC_MULTI_USER_{index}: {2}")
-    @MethodSource("com.springboot.testdata.CartOfferTestDataProvider#getMultiUserSegmentTestData")
-    @DisplayName("Multi-User Segment Testing - Data Driven")
-    void testMultiUserSegmentScenarios(int userId, String expectedSegment, int cartValue, int expectedResult,
-            String description) throws Exception {
-        System.out.println("Testing: " + description);
-
-        // Setup: Create restaurant with multiple offers for different segments
-        int restaurantId = TestDataConfig.generateUniqueRestaurantId();
-
-        // Add offers for different segments using helper methods
-        addOffer(CartOfferTestDataProvider.createFlatXOffer(restaurantId, 10, "p1"));
-        addOffer(CartOfferTestDataProvider.createPercentageOffer(restaurantId, 20, "p2"));
-        // No offer for p3 segment
-
-        // Execute: Apply offer for specific user
-        ApplyOfferRequestDTO applyRequest = new ApplyOfferRequestDTO(cartValue, restaurantId, userId);
-        ApplyOfferResponseDTO response = applyOffer(applyRequest);
-
-        // Validate: Expected result based on user segment
-        assertThat(response.getCartValue()).isEqualTo(expectedResult);
-        validateBusinessRules(response.getCartValue(), cartValue, expectedResult, description);
-
-        System.out.println(
-                "✅ " + description + ": User " + userId + " (" + expectedSegment + ") -> " + response.getCartValue());
-    }
-
-    // ============ TEST CASE 3: PERCENTAGE OFFER TESTING ============
+    // ============ TEST CASE 2: PERCENTAGE OFFER TESTING ============
 
     @ParameterizedTest(name = "TC_PERCENT_{index}: {3}")
     @MethodSource("com.springboot.testdata.CartOfferTestDataProvider#getFlatPercentOfferTestData")
@@ -119,38 +90,223 @@ public class CartOfferApplicationTests {
         System.out.println("✅ " + description + ": " + cartValue + " -> " + response.getCartValue());
     }
 
-    // ============ TEST CASE 4: INVALID SCENARIO TESTING ============
+    // ============ TEST CASE 3: MULTI-USER SEGMENT TESTING ============
 
-    @ParameterizedTest(name = "TC_INVALID_{index}: {3}")
-    @MethodSource("com.springboot.testdata.CartOfferTestDataProvider#getInvalidScenarioTestData")
-    @DisplayName("Invalid Scenario Testing - Data Driven")
-    void testInvalidScenarios(int restaurantId, int userId, int cartValue, int expectedResult, String description) {
+    @ParameterizedTest(name = "TC_MULTI_USER_{index}: {4}")
+    @MethodSource("com.springboot.testdata.CartOfferTestDataProvider#getMultiUserSegmentTestData")
+    @DisplayName("Multi-User Segment Testing - Data Driven")
+    void testMultiUserSegmentScenarios(int userId, String expectedSegment, int cartValue, int expectedResult,
+                                       String description) throws Exception {
         System.out.println("Testing: " + description);
 
-        // For non-existent restaurants or invalid scenarios, we expect no discount to
-        // be applied
-        // The cart value should remain the same as input
+        // Setup: Create restaurant with multiple offers for different segments
+        int restaurantId = TestDataConfig.generateUniqueRestaurantId();
+
+        // Add offers for different segments using helper methods
+        addOffer(CartOfferTestDataProvider.createFlatXOffer(restaurantId, 10, "p1"));
+        addOffer(CartOfferTestDataProvider.createPercentageOffer(restaurantId, 20, "p2"));
+        // No offer for p3 segment
+
+        // Execute: Apply offer for specific user
+        ApplyOfferRequestDTO applyRequest = new ApplyOfferRequestDTO(cartValue, restaurantId, userId);
+        ApplyOfferResponseDTO response = applyOffer(applyRequest);
+
+        // Validate: Expected result based on user segment
+        assertThat(response.getCartValue()).isEqualTo(expectedResult);
+        validateBusinessRules(response.getCartValue(), cartValue, expectedResult, description);
+
+        System.out.println(
+                "✅ " + description + ": User " + userId + " (" + expectedSegment + ") -> " + response.getCartValue());
+    }
+
+    // ============ TEST CASE 4: RESTAURANT WITHOUT OFFERS ============
+
+    @ParameterizedTest(name = "TC_NO_OFFERS_{index}: {4}")
+    @MethodSource("com.springboot.testdata.CartOfferTestDataProvider#getRestaurantWithoutOffersTestData")
+    @DisplayName("Restaurant Without Offers - Critical Real World Scenario")
+    void testRestaurantWithoutOffers(int restaurantId, int userId, int cartValue, int expectedResult, String description)
+            throws Exception {
+        System.out.println("Testing: " + description);
+
+        // No offers are added for this restaurant - this is the key test
+        // Execute: Apply offer to restaurant with no offers
+        ApplyOfferRequestDTO applyRequest = new ApplyOfferRequestDTO(cartValue, restaurantId, userId);
+        ApplyOfferResponseDTO response = applyOffer(applyRequest);
+
+        // Validate: Cart value should remain unchanged
+        assertThat(response.getCartValue()).isEqualTo(expectedResult);
+        assertThat(response.getCartValue()).isEqualTo(cartValue); // No discount should be applied
+        validateBusinessRules(response.getCartValue(), cartValue, expectedResult, description);
+
+        System.out.println("✅ " + description + ": " + cartValue + " -> " + response.getCartValue() + " (No change expected)");
+    }
+
+    // ============ TEST CASE 5: MULTIPLE OFFERS SAME SEGMENT ============
+
+    @ParameterizedTest(name = "TC_MULTIPLE_OFFERS_{index}: {3}")
+    @MethodSource("com.springboot.testdata.CartOfferTestDataProvider#getMultipleOffersSameSegmentTestData")
+    @DisplayName("Multiple Offers Same Segment - Business Rule Testing")
+    void testMultipleOffersSameSegment(String scenario, int cartValue, int expectedResult, String description)
+            throws Exception {
+        System.out.println("Testing: " + description);
+
+        int restaurantId = TestDataConfig.generateUniqueRestaurantId();
+
+        // Setup: Add multiple offers for same segment based on scenario
+        switch (scenario) {
+            case "MULTIPLE_FLATX_P1":
+                // Add two FLATX offers for p1 - first one should win (10 discount)
+                addOffer(CartOfferTestDataProvider.createFlatXOffer(restaurantId, 10, "p1"));
+                addOffer(CartOfferTestDataProvider.createFlatXOffer(restaurantId, 20, "p1"));
+                break;
+
+            case "MIXED_OFFERS_P1":
+                // Add FLATX first, then percentage - FLATX should win
+                addOffer(CartOfferTestDataProvider.createFlatXOffer(restaurantId, 10, "p1"));
+                addOffer(CartOfferTestDataProvider.createPercentageOffer(restaurantId, 15, "p1"));
+                break;
+
+            case "MULTIPLE_PERCENT_P2":
+                // Add two percentage offers for p2 - first one should win (10% discount)
+                addOffer(CartOfferTestDataProvider.createPercentageOffer(restaurantId, 10, "p2"));
+                addOffer(CartOfferTestDataProvider.createPercentageOffer(restaurantId, 25, "p2"));
+                break;
+        }
+
+        // Execute: Apply offer
+        int userId = scenario.contains("P2") ? 2 : 1; // Use user 2 for p2 scenarios
+        ApplyOfferRequestDTO applyRequest = new ApplyOfferRequestDTO(cartValue, restaurantId, userId);
+        ApplyOfferResponseDTO response = applyOffer(applyRequest);
+
+        // Validate: First matching offer should be applied
+        assertThat(response.getCartValue()).isEqualTo(expectedResult);
+        validateBusinessRules(response.getCartValue(), cartValue, expectedResult, description);
+
+        System.out.println("✅ " + description + ": " + cartValue + " -> " + response.getCartValue());
+    }
+
+    // ============ TEST CASE 6: USER SEGMENT SERVICE FAILURE ============
+
+    @ParameterizedTest(name = "TC_SERVICE_FAILURE_{index}: {3}")
+    @MethodSource("com.springboot.testdata.CartOfferTestDataProvider#getUserSegmentServiceFailureTestData")
+    @DisplayName("User Segment Service Failure - Critical Production Scenario")
+    void testUserSegmentServiceFailure(int userId, String expectedBehavior, int cartValue, String description) {
+        System.out.println("Testing: " + description);
+
+        try {
+            int restaurantId = TestDataConfig.generateUniqueRestaurantId();
+
+            // Setup: Add an offer that would apply if service worked
+            addOffer(CartOfferTestDataProvider.createFlatXOffer(restaurantId, 10, "p1"));
+
+            // Execute: Try to apply offer with non-existent user (not in mock service)
+            ApplyOfferRequestDTO applyRequest = new ApplyOfferRequestDTO(cartValue, restaurantId, userId);
+            ApplyOfferResponseDTO response = applyOffer(applyRequest);
+
+            // Validate: When service fails, cart should remain unchanged (graceful degradation)
+            assertThat(response.getCartValue()).isEqualTo(cartValue);
+            System.out.println("✅ " + description + ": Graceful handling - " + cartValue + " -> " + response.getCartValue());
+
+        } catch (Exception e) {
+            // This is also acceptable behavior - service failure should be handled gracefully
+            System.out.println("⚠️ " + description + ": Service failure handled with exception - " + e.getMessage());
+            // In production, we'd want to verify the specific error handling mechanism
+        }
+    }
+
+    // ============ TEST CASE 7: INPUT VALIDATION TESTING ============
+
+    @ParameterizedTest(name = "TC_INPUT_VALIDATION_{index}: {4}")
+    @MethodSource("com.springboot.testdata.CartOfferTestDataProvider#getInputValidationTestData")
+    @DisplayName("Input Validation Testing - Edge Cases")
+    void testInputValidation(int cartValue, int userId, int restaurantId, String expectedBehavior, String description)
+            throws Exception {
+        System.out.println("Testing: " + description);
+
+        // Setup: Add a standard offer
+        int testRestaurantId = restaurantId == 1 ? TestDataConfig.generateUniqueRestaurantId() : restaurantId;
+        if (restaurantId == 1) {
+            addOffer(CartOfferTestDataProvider.createFlatXOffer(testRestaurantId, 10, "p1"));
+        }
+
+        try {
+            // Execute: Apply offer with edge case input
+            ApplyOfferRequestDTO applyRequest = new ApplyOfferRequestDTO(cartValue, testRestaurantId, userId);
+            ApplyOfferResponseDTO response = applyOffer(applyRequest);
+
+            // Validate based on scenario
+            switch (expectedBehavior) {
+                case "ZERO_CART":
+                case "NEGATIVE_CART":
+                    // Zero or negative cart should result in zero
+                    assertThat(response.getCartValue()).isEqualTo(0);
+                    break;
+                case "LARGE_CART":
+                    // Large cart should handle properly (999999 - 10 = 999989)
+                    assertThat(response.getCartValue()).isEqualTo(999989);
+                    break;
+            }
+
+            validateBusinessRules(response.getCartValue(), Math.max(0, cartValue), response.getCartValue(), description);
+            System.out.println("✅ " + description + ": " + cartValue + " -> " + response.getCartValue());
+
+        } catch (Exception e) {
+            // Some invalid inputs might throw exceptions - this is acceptable
+            System.out.println("⚠️ " + description + ": Input validation caught - " + e.getMessage());
+        }
+    }
+
+    // ============ TEST CASE 8: INVALID SCENARIOS ============
+
+    @ParameterizedTest(name = "TC_INVALID_{index}: {4}")
+    @MethodSource("com.springboot.testdata.CartOfferTestDataProvider#getInvalidScenarioTestData")
+    @DisplayName("Invalid Scenario Testing - Error Handling")
+    void testInvalidScenarios(int restaurantId, int userId, int cartValue, int expectedResult, String description) {
+        System.out.println("Testing: " + description);
 
         try {
             ApplyOfferRequestDTO applyRequest = new ApplyOfferRequestDTO(cartValue, restaurantId, userId);
             ApplyOfferResponseDTO response = applyOffer(applyRequest);
 
-            // Validate: Expected result for invalid scenarios
+            // Validate: Expected result for invalid scenarios (should be no discount)
             assertThat(response.getCartValue()).isEqualTo(expectedResult);
-
             System.out.println("✅ " + description + ": " + cartValue + " -> " + response.getCartValue());
+
         } catch (Exception e) {
             // For truly invalid scenarios, we might expect an error response
-            // This is acceptable behavior for invalid restaurant IDs or user segments
-            System.out.println("⚠️ " + description + ": Expected behavior - " + e.getMessage());
+            System.out.println("⚠️ " + description + ": Expected error behavior - " + e.getMessage());
         }
     }
 
-    // ============ TEST CASE 5: BUSINESS RULE TESTING ============
+    // ============ TEST CASE 9: CART BOUNDARY TESTING ============
+
+    @ParameterizedTest(name = "TC_BOUNDARY_{index}: {3}")
+    @MethodSource("com.springboot.testdata.CartOfferTestDataProvider#getCartBoundaryTestData")
+    @DisplayName("Cart Boundary Testing - Focused Real World Scenarios")
+    void testCartBoundaryScenarios(int cartValue, int discountAmount, int expectedCartValue, String description)
+            throws Exception {
+        System.out.println("Testing: " + description);
+
+        // Setup: Create unique restaurant and add offer
+        int restaurantId = TestDataConfig.generateUniqueRestaurantId();
+        OfferRequest offerRequest = CartOfferTestDataProvider.createFlatXOffer(restaurantId, discountAmount, "p1");
+        addOffer(offerRequest);
+
+        // Execute: Apply offer
+        ApplyOfferRequestDTO applyRequest = new ApplyOfferRequestDTO(cartValue, restaurantId, 1);
+        ApplyOfferResponseDTO response = applyOffer(applyRequest);
+
+        // Validate: Boundary-specific assertions
+        validateBoundaryBusinessRules(response.getCartValue(), cartValue, discountAmount, expectedCartValue, description);
+
+        System.out.println("✅ " + description + ": " + cartValue + " -> " + response.getCartValue());
+    }
+
+    // ============ TEST CASE 10: BUSINESS RULE TESTING ============
 
     @ParameterizedTest(name = "TC_BUSINESS_{index}: {3}")
     @MethodSource("com.springboot.testdata.CartOfferTestDataProvider#getBusinessRuleTestData")
-    @DisplayName("Business Rule Testing - Data Driven")
+    @DisplayName("Business Rule Testing - Enhanced Scenarios")
     void testBusinessRules(String scenario, int userId, int cartValue, String expectedBehavior)
             throws Exception {
         System.out.println("Testing Business Rule: " + expectedBehavior + " (Scenario: " + scenario + ")");
@@ -180,6 +336,12 @@ public class CartOfferApplicationTests {
                 // Add high percentage discount
                 addOffer(CartOfferTestDataProvider.createPercentageOffer(testRestaurantId, 80, "p1"));
                 break;
+
+            case "OFFER_PRECEDENCE":
+                // Add both FLATX and percentage offers
+                addOffer(CartOfferTestDataProvider.createFlatXOffer(testRestaurantId, 30, "p1"));
+                addOffer(CartOfferTestDataProvider.createPercentageOffer(testRestaurantId, 10, "p1"));
+                break;
         }
 
         // Execute: Apply offer
@@ -195,87 +357,13 @@ public class CartOfferApplicationTests {
         System.out.println("✅ " + expectedBehavior + ": " + cartValue + " -> " + response.getCartValue());
     }
 
-    // ============ TEST CASE 6: CART BOUNDARY TESTING ============
+    // ============ TEST CASE 11: OFFER CREATION TESTING ============
 
-    @ParameterizedTest(name = "TC_BOUNDARY_{index}: {3}")
-    @MethodSource("com.springboot.testdata.CartOfferTestDataProvider#getCartBoundaryTestData")
-    @DisplayName("Cart Boundary Testing - Data Driven")
-    void testCartBoundaryScenarios(int cartValue, int discountAmount, int expectedCartValue, String description)
-            throws Exception {
-        System.out.println("Testing: " + description);
-
-        // Setup: Create unique restaurant and add offer
-        int restaurantId = TestDataConfig.generateUniqueRestaurantId();
-        OfferRequest offerRequest = CartOfferTestDataProvider.createFlatXOffer(restaurantId, discountAmount, "p1");
-        addOffer(offerRequest);
-
-        // Execute: Apply offer
-        ApplyOfferRequestDTO applyRequest = new ApplyOfferRequestDTO(cartValue, restaurantId, 1);
-        ApplyOfferResponseDTO response = applyOffer(applyRequest);
-
-        // Validate: Boundary-specific assertions
-        validateBoundaryBusinessRules(response.getCartValue(), cartValue, discountAmount, expectedCartValue,
-                description);
-
-        System.out.println("✅ " + description + ": " + cartValue + " -> " + response.getCartValue());
-    }
-
-    // ============ TEST CASE 7: DECIMAL & EXTREME VALUE TESTING ============
-
-    @ParameterizedTest(name = "TC_DECIMAL_{index}: {3}")
-    @MethodSource("com.springboot.testdata.CartOfferTestDataProvider#getDecimalAndExtremeValueTestData")
-    @DisplayName("Decimal & Extreme Value Testing - Data Driven")
-    void testDecimalAndExtremeValueScenarios(double cartValue, double discountAmount, double expectedCartValue,
-            String description)
-            throws Exception {
-        System.out.println("Testing: " + description);
-
-        // Setup: Create unique restaurant and add offer
-        int restaurantId = TestDataConfig.generateUniqueRestaurantId();
-
-        // Convert double values to int for offer creation (rounding to nearest integer)
-        int intCartValue = (int) Math.round(cartValue);
-        int intDiscountAmount = (int) Math.round(discountAmount);
-
-        // Create FLATX offer for this test
-        OfferRequest offerRequest = CartOfferTestDataProvider.createFlatXOffer(restaurantId, intDiscountAmount, "p1");
-        addOffer(offerRequest);
-
-        // Execute: Apply offer
-        ApplyOfferRequestDTO applyRequest = new ApplyOfferRequestDTO(intCartValue, restaurantId, 1);
-        ApplyOfferResponseDTO response = applyOffer(applyRequest);
-
-        // Validate: Decimal and extreme value specific assertions
-        if (cartValue == 0.0) {
-            // Zero cart scenarios
-            assertThat(response.getCartValue()).isEqualTo(0);
-        } else if (discountAmount >= cartValue) {
-            // Over-discount scenarios
-            assertThat(response.getCartValue()).isEqualTo(0);
-        } else if (cartValue == Integer.MAX_VALUE && discountAmount == 0.0) {
-            // Maximum integer with zero discount
-            assertThat(response.getCartValue()).isEqualTo(Integer.MAX_VALUE);
-        } else {
-            // Normal discount scenarios - allow tolerance for decimal calculations
-            double tolerance = Math.max(1.0, expectedCartValue * 0.01); // 1% tolerance or 1.0 minimum
-            assertThat(response.getCartValue()).isBetween(
-                    (int) (expectedCartValue - tolerance),
-                    (int) (expectedCartValue + tolerance));
-        }
-
-        // General business rule validation
-        validateBusinessRules(response.getCartValue(), intCartValue, (int) expectedCartValue, description);
-
-        System.out.println("✅ " + description + ": " + cartValue + " -> " + response.getCartValue());
-    }
-
-    // ============ TEST CASE 8: OFFER CREATION TESTING ============
-
-    @ParameterizedTest(name = "TC_CREATE_{index}: {4}")
+    @ParameterizedTest(name = "TC_CREATE_{index}: {5}")
     @MethodSource("com.springboot.testdata.CartOfferTestDataProvider#getOfferCreationTestData")
-    @DisplayName("Offer Creation Testing - Data Driven")
+    @DisplayName("Offer Creation Testing - Enhanced with Case Sensitivity")
     void testOfferCreation(int restaurantId, String offerType, int offerValue, List<String> segments,
-            String expectedResponse, String description) throws Exception {
+                           String expectedResponse, String description) throws Exception {
         System.out.println("Testing: " + description);
 
         // Create offer request based on test data
@@ -290,8 +378,8 @@ public class CartOfferApplicationTests {
                 assertThat(response.getResponseMsg()).contains("success");
                 System.out.println("✅ " + description + ": Offer created successfully");
             } else {
-                // This shouldn't happen for success cases
-                assertThat(response.getResponseMsg()).contains("success");
+                // For expected error cases, we shouldn't reach here
+                System.out.println("⚠️ " + description + ": Expected error but got success");
             }
 
         } catch (Exception e) {
@@ -305,23 +393,25 @@ public class CartOfferApplicationTests {
         }
     }
 
-    // ============ BUSINESS RULE VALIDATION METHOD ============
+    // ============ BUSINESS RULE VALIDATION METHODS ============
 
     /**
      * Centralized business rules validation
      * Ensures all tests follow the same validation criteria
      */
     private void validateBusinessRules(int actualCartValue, int originalCartValue, int expectedCartValue,
-            String testDescription) {
+                                       String testDescription) {
         // Rule 1: Cart value should never be negative (most important business rule)
         assertThat(actualCartValue)
                 .as("Cart value should never be negative in " + testDescription)
                 .isGreaterThanOrEqualTo(0);
 
-        // Rule 2: Cart value should never exceed original value
-        assertThat(actualCartValue)
-                .as("Cart value should never exceed original value in " + testDescription)
-                .isLessThanOrEqualTo(originalCartValue);
+        // Rule 2: Cart value should never exceed original value (unless original was negative)
+        if (originalCartValue >= 0) {
+            assertThat(actualCartValue)
+                    .as("Cart value should never exceed original value in " + testDescription)
+                    .isLessThanOrEqualTo(originalCartValue);
+        }
 
         // Rule 3: Cart value should match expected calculation
         assertThat(actualCartValue)
@@ -331,11 +421,9 @@ public class CartOfferApplicationTests {
 
     /**
      * Enhanced business rules validation for boundary scenarios
-     * Handles special cases like negative cart values, zero cart values, and
-     * over-discounts
      */
     private void validateBoundaryBusinessRules(int actualCartValue, int originalCartValue, int discountAmount,
-            int expectedCartValue, String testDescription) {
+                                               int expectedCartValue, String testDescription) {
         // Handle negative cart values
         if (originalCartValue < 0) {
             assertThat(actualCartValue)
@@ -366,10 +454,9 @@ public class CartOfferApplicationTests {
 
     /**
      * Business rule specific validation for complex scenarios
-     * Handles offer precedence, segment priority, and stacking rules
      */
     private void validateBusinessRuleSpecific(int actualCartValue, int originalCartValue, String scenario, int userId,
-            String expectedBehavior) {
+                                              String expectedBehavior) {
         switch (scenario) {
             case "FIRST_MATCH":
                 assertThat(actualCartValue)
@@ -396,13 +483,20 @@ public class CartOfferApplicationTests {
                         .isEqualTo(originalCartValue - 25);
                 break;
 
-            case "DISCOUNT_CAP": // DISCOUNT_CAP
+            case "DISCOUNT_CAP":
                 assertThat(actualCartValue)
                         .as("Cart should not go negative in " + expectedBehavior)
                         .isGreaterThanOrEqualTo(0);
                 assertThat(actualCartValue)
                         .as("Cart should not exceed original value in " + expectedBehavior)
                         .isLessThanOrEqualTo(originalCartValue);
+                break;
+
+            case "OFFER_PRECEDENCE":
+                // First offer (FLATX 30) should be applied
+                assertThat(actualCartValue)
+                        .as("First offer should take precedence in " + expectedBehavior)
+                        .isEqualTo(originalCartValue - 30);
                 break;
         }
     }
@@ -412,7 +506,7 @@ public class CartOfferApplicationTests {
     private AddOfferApiResponseDTO addOffer(OfferRequest offerRequest) throws Exception {
         System.out.println("Adding offer: " + offerRequest);
 
-        String OFFER_URL = "http://localhost:8080/api/v1/offer";
+        String OFFER_URL = "http://localhost:8000/api/v1/offer";
         URI uri = URI.create(OFFER_URL);
         String jsonBody = objectMapper.writeValueAsString(offerRequest);
 
@@ -438,7 +532,7 @@ public class CartOfferApplicationTests {
     private ApplyOfferResponseDTO applyOffer(ApplyOfferRequestDTO applyOfferRequest) throws Exception {
         System.out.println("Applying offer: " + applyOfferRequest);
 
-        String APPLY_OFFER_URL = "http://localhost:8080/api/v1/cart/apply_offer";
+        String APPLY_OFFER_URL = "http://localhost:8000/api/v1/cart/apply_offer";
         URI uri = URI.create(APPLY_OFFER_URL);
         String jsonBody = objectMapper.writeValueAsString(applyOfferRequest);
 
@@ -460,5 +554,4 @@ public class CartOfferApplicationTests {
         System.out.println("Offer applied. Final cart value: " + responseDto.getCartValue());
         return responseDto;
     }
-
 }

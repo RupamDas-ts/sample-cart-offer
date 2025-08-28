@@ -37,5 +37,87 @@
       "body": "{\"segment\": \"p3\"}",
       "statusCode": 200
     }
+  },
+  {
+    "httpRequest": {
+      "method": "GET",
+      "path": "/api/v1/user_segment",
+      "queryStringParameters": {
+        "user_id": ["404"]
+      }
+    },
+    "httpResponse": {
+      "body": "{\"error\": \"User not found\", \"message\": \"User segment not available for user_id: 404\"}",
+      "statusCode": 404
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "GET",
+      "path": "/api/v1/user_segment",
+      "queryStringParameters": {
+        "user_id": ["500"]
+      }
+    },
+    "httpResponse": {
+      "body": "{\"error\": \"Internal Server Error\", \"message\": \"User segment service temporarily unavailable\"}",
+      "statusCode": 500
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "GET",
+      "path": "/api/v1/user_segment",
+      "queryStringParameters": {
+        "user_id": ["999"]
+      }
+    },
+    "httpResponse": {
+      "body": "{\"error\": \"Service Timeout\", \"message\": \"User segment service response timeout\"}",
+      "statusCode": 503,
+      "delay": {
+        "timeUnit": "SECONDS",
+        "value": 5
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "GET",
+      "path": "/api/v1/user_segment",
+      "queryStringParameters": {
+        "user_id": ["0"]
+      }
+    },
+    "httpResponse": {
+      "body": "{\"error\": \"Invalid User ID\", \"message\": \"User ID must be a positive integer\"}",
+      "statusCode": 400
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "GET",
+      "path": "/api/v1/user_segment",
+      "queryStringParameters": {
+        "user_id": ["-1"]
+      }
+    },
+    "httpResponse": {
+      "body": "{\"error\": \"Invalid User ID\", \"message\": \"User ID cannot be negative\"}",
+      "statusCode": 400
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "GET",
+      "path": "/api/v1/user_segment",
+      "queryStringParameters": {
+        "user_id": ["4"]
+      }
+    },
+    "httpResponse": {
+      "body": "{\"error\": \"Segment Not Assigned\", \"message\": \"User exists but no segment assigned\"}",
+      "statusCode": 422
+    }
   }
 ]

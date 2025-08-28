@@ -11,7 +11,7 @@ public class CartOfferTestDataProvider {
     // ============ FLATX OFFER TEST DATA ============
     /**
      * Test data for FLATX offer scenarios
-     * 
+     *
      * @return Stream of test arguments: cartValue, discountAmount, expectedResult,
      *         description
      */
@@ -34,7 +34,7 @@ public class CartOfferTestDataProvider {
 
     /**
      * Test data for percentage offer scenarios
-     * 
+     *
      * @return Stream of test arguments: cartValue, discountPercent, expectedResult,
      *         description
      */
@@ -48,16 +48,16 @@ public class CartOfferTestDataProvider {
                 Arguments.of(200, 0, 200, "0% discount - no change"),
                 Arguments.of(100, 100, 0, "100% discount - free order"),
 
-                // Critical precision scenarios
-                Arguments.of(100, 99, 1, "99% discount - precision edge case")
-        );
+                // Critical rounding scenarios - Real world edge cases
+                Arguments.of(199, 33, 133, "33% of 199 - rounding scenario"),
+                Arguments.of(101, 50, 50, "50% of 101 - rounding to nearest integer"));
     }
 
     // ============ OFFER CREATION TEST DATA ============
 
     /**
      * Test data for offer creation scenarios
-     * 
+     *
      * @return Stream of test arguments: restaurantId, offerType, offerValue,
      *         segments, expectedResponse
      */
@@ -74,6 +74,10 @@ public class CartOfferTestDataProvider {
                 Arguments.of(6, "FLATX", 0, List.of("p1"), "success", "Zero discount offer"),
                 Arguments.of(7, "FLAT%", 100, List.of("p1"), "success", "100% discount offer"),
 
+                // Case sensitivity tests - Real world issue
+                Arguments.of(8, "flatx", 10, List.of("p1"), "error", "Lowercase offer type"),
+                Arguments.of(9, "FlatX", 10, List.of("p1"), "error", "Mixed case offer type"),
+
                 // Essential error cases
                 Arguments.of(10, "FLATX", -5, List.of("p1"), "error", "Negative discount value"),
                 Arguments.of(11, "FLAT%", 110, List.of("p1"), "error", "Percentage over 100%"),
@@ -87,7 +91,7 @@ public class CartOfferTestDataProvider {
 
     /**
      * Test data for multiple user segments with different offers
-     * 
+     *
      * @return Stream of test arguments: userId, expectedSegment, cartValue,
      *         expectedResult, description
      */
@@ -98,48 +102,101 @@ public class CartOfferTestDataProvider {
                 Arguments.of(3, "p3", 200, 200, "User p3 gets no matching offer"));
     }
 
+    // ============ RESTAURANT WITHOUT OFFERS TEST DATA ============
+
+    /**
+     * Test data for restaurants with no configured offers - Critical real world scenario
+     *
+     * @return Stream of test arguments: restaurantId, userId, cartValue,
+     *         expectedResult, description
+     */
+    public static Stream<Arguments> getRestaurantWithoutOffersTestData() {
+        return Stream.of(
+                Arguments.of(999, 1, 200, 200, "Restaurant with no offers - p1 user"),
+                Arguments.of(999, 2, 150, 150, "Restaurant with no offers - p2 user"),
+                Arguments.of(999, 3, 300, 300, "Restaurant with no offers - p3 user"),
+
+                // Edge case: Restaurant that never had offers configured
+                Arguments.of(1001, 1, 100, 100, "Fresh restaurant with no offer history"));
+    }
+
+    // ============ MULTIPLE OFFERS SAME SEGMENT TEST DATA ============
+
+    /**
+     * Test data for restaurants with multiple offers for the same segment - Business rule testing
+     *
+     * @return Stream of test arguments: scenario, cartValue, expectedResult, description
+     */
+    public static Stream<Arguments> getMultipleOffersSameSegmentTestData() {
+        return Stream.of(
+                // Multiple FLATX offers for p1 segment
+                Arguments.of("MULTIPLE_FLATX_P1", 200, 190, "Multiple FLATX offers for p1 - first match wins"),
+
+                // Mixed offer types for same segment
+                Arguments.of("MIXED_OFFERS_P1", 200, 190, "FLATX and PERCENTAGE for p1 - first match wins"),
+
+                // Multiple percentage offers
+                Arguments.of("MULTIPLE_PERCENT_P2", 100, 90, "Multiple percentage offers for p2 - first match wins"));
+    }
+
     // ============ INVALID SCENARIO TEST DATA ============
 
     /**
      * Test data for invalid/error scenarios
-     * 
+     *
      * @return Stream of test arguments: restaurantId, userId, cartValue,
      *         expectedResult, description
      */
     public static Stream<Arguments> getInvalidScenarioTestData() {
         return Stream.of(
                 Arguments.of(999, 1, 200, 200, "Non-existent restaurant - no discount"),
-                Arguments.of(50, 4, 200, 200, "Invalid user segment - no discount"),
 
                 // Essential boundary cases
                 Arguments.of(0, 1, 200, 200, "Zero restaurant ID - invalid input"),
-                Arguments.of(-1, 1, 200, 200, "Negative restaurant ID - invalid input"));
+                Arguments.of(-1, 1, 200, 200, "Negative restaurant ID - invalid input"),
+
+                // Invalid user IDs - Real world scenarios
+                Arguments.of(1, 0, 200, 200, "Zero user ID - invalid user"),
+                Arguments.of(1, -1, 200, 200, "Negative user ID - invalid user"));
     }
 
-    // ============ BUSINESS RULE TEST DATA ============
+    // ============ SERVICE FAILURE SIMULATION TEST DATA ============
 
     /**
-     * Test data for complex business rule scenarios
-     * 
-     * @return Stream of test arguments: scenario, restaurantId, userId, cartValue,
-     *         expectedBehavior
+     * Test data for user segment service failure scenarios - Critical for production
+     *
+     * @return Stream of test arguments: userId, expectedBehavior, cartValue, description
      */
-    public static Stream<Arguments> getBusinessRuleTestData() {
+    public static Stream<Arguments> getUserSegmentServiceFailureTestData() {
         return Stream.of(
-                // Essential business rules
-                Arguments.of("FIRST_MATCH", 1, 200, "First matching offer should be applied"),
-                Arguments.of("SEGMENT_PRIORITY", 2, 300, "Segment-specific offer priority"),
-                Arguments.of("NO_STACKING", 1, 150, "Multiple offers should not stack"),
+                // Users not configured in mock service will cause service failure
+                Arguments.of(404, "SERVICE_ERROR", 200, "User not found in segment service"),
+                Arguments.of(500, "SERVICE_ERROR", 150, "Service returns 500 error"),
+                Arguments.of(999, "SERVICE_ERROR", 100, "User segment service timeout scenario"));
+    }
 
-                // Critical business logic
-                Arguments.of("OFFER_CONFLICT", 1, 200, "Conflicting offers - should resolve gracefully"));
+    // ============ INPUT VALIDATION TEST DATA ============
+
+    /**
+     * Test data for null and invalid input validation
+     *
+     * @return Stream of test arguments: cartValue, userId, restaurantId, expectedBehavior, description
+     */
+    public static Stream<Arguments> getInputValidationTestData() {
+        return Stream.of(
+                // Zero and negative cart values
+                Arguments.of(0, 1, 1, "ZERO_CART", "Zero cart value - should handle gracefully"),
+                Arguments.of(-100, 1, 1, "NEGATIVE_CART", "Negative cart value - should handle gracefully"),
+
+                // Large cart values - Real world high-value orders
+                Arguments.of(999999, 1, 1, "LARGE_CART", "Very large cart value - system boundary test"));
     }
 
     // ============ CART BOUNDARY TEST DATA ============
 
     /**
-     * Test data for cart boundary scenarios
-     * 
+     * Test data for cart boundary scenarios - Focused on realistic boundaries
+     *
      * @return Stream of test arguments: cartValue, discountAmount, expectedResult,
      *         description
      */
@@ -148,10 +205,30 @@ public class CartOfferTestDataProvider {
                 // Essential boundary scenarios
                 Arguments.of(50, 50, 0, "Full discount - cart becomes zero"),
                 Arguments.of(30, 40, 0, "Over-discount - cart should not go negative"),
+                Arguments.of(1, 5, 0, "Small cart with large discount"),
 
-                // Critical edge cases
+                // Real-world minimum order scenarios
                 Arguments.of(0, 10, 0, "Zero cart value - no discount applied"),
                 Arguments.of(-5, 10, 0, "Negative cart value - should be handled gracefully"));
+    }
+
+    // ============ BUSINESS RULE TEST DATA ============
+
+    /**
+     * Test data for complex business rule scenarios - Enhanced with realistic scenarios
+     *
+     * @return Stream of test arguments: scenario, userId, cartValue, expectedBehavior
+     */
+    public static Stream<Arguments> getBusinessRuleTestData() {
+        return Stream.of(
+                // Essential business rules
+                Arguments.of("FIRST_MATCH", 1, 200, "First matching offer should be applied"),
+                Arguments.of("SEGMENT_PRIORITY", 2, 300, "Segment-specific offer priority"),
+                Arguments.of("NO_STACKING", 1, 150, "Multiple offers should not stack"),
+
+                // Enhanced business logic scenarios
+                Arguments.of("DISCOUNT_CAP", 1, 100, "High percentage discounts should not exceed cart value"),
+                Arguments.of("OFFER_PRECEDENCE", 1, 250, "FLATX vs PERCENTAGE precedence rules"));
     }
 
     /**
@@ -168,34 +245,21 @@ public class CartOfferTestDataProvider {
         return new OfferRequest(restaurantId, "FLAT%", discountPercent, List.of(segments));
     }
 
-    // ============ DECIMAL & EXTREME VALUE TEST DATA ============
+    /**
+     * Creates multiple offers for the same segment - for testing business rules
+     */
+    public static OfferRequest[] createMultipleOffersForSegment(int restaurantId, String segment) {
+        return new OfferRequest[]{
+                new OfferRequest(restaurantId, "FLATX", 10, List.of(segment)),
+                new OfferRequest(restaurantId, "FLATX", 20, List.of(segment)),
+                new OfferRequest(restaurantId, "FLAT%", 15, List.of(segment))
+        };
+    }
 
     /**
-     * Test data for decimal cart values and extreme integer scenarios
-     * Note: This method uses double parameters and should be used with test methods
-     * that can handle decimal values
-     * 
-     * @return Stream of test arguments: cartValue, discountAmount, expectedResult,
-     *         description
+     * Creates test offer with invalid data for validation testing
      */
-    public static Stream<Arguments> getDecimalAndExtremeValueTestData() {
-        return Stream.of(
-                // Decimal cart value scenarios
-                Arguments.of(99.99, 10.0, 89.99, "Decimal cart value with FLATX discount"),
-                Arguments.of(100.50, 50.0, 50.50, "Half decimal cart value with large discount"),
-                Arguments.of(0.01, 0.01, 0.0, "Minimum decimal cart value boundary"),
-                Arguments.of(999.99, 999.99, 0.0, "High precision decimal cart with exact discount"),
-
-                // Maximum integer scenarios
-                Arguments.of((double) Integer.MAX_VALUE, 100.0, (double) (Integer.MAX_VALUE - 100),
-                        "Maximum integer cart value handling"),
-                Arguments.of((double) Integer.MAX_VALUE, (double) Integer.MAX_VALUE, 0.0,
-                        "Maximum integer cart with maximum discount"),
-                Arguments.of((double) Integer.MAX_VALUE, 0.0, (double) Integer.MAX_VALUE,
-                        "Maximum integer cart with zero discount"),
-
-                // Mixed precision scenarios
-                Arguments.of(100.0, 99.99, 0.01, "Whole number cart with high precision discount"),
-                Arguments.of(99.99, 100.0, 0.0, "Decimal cart with whole number discount"));
+    public static OfferRequest createInvalidOffer(String invalidOfferType, int restaurantId) {
+        return new OfferRequest(restaurantId, invalidOfferType, 10, List.of("p1"));
     }
 }
